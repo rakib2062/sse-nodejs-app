@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE Example with Chart.js</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        #messages {
+            margin-top: 20px;
+        }
+        #chart-container {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 600px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>Server-Sent Events (SSE)</h1>
+    <div id="chart-container">
+        <canvas id="heartRateChart"></canvas>
+    </div>
+
+    <script>
+        // Create an EventSource object to listen to SSE events from the server
+        const eventSource = new EventSource('http://localhost:3000/events');
+
+        // Chart.js setup
+        const ctx = document.getElementById('heartRateChart').getContext('2d');
+        const heartRateData = {
+            labels: [], // Time labels
+            datasets: [{
+                label: 'Heart Rate',
+                data: [],
+                backgroundColor: function(context) {
+                    const value = context.raw;
+                    return value > 90 ? '#27548A' : '#C62300'; // Gradient color logic
+                },
+                borderColor: 'white',
+                borderWidth: 1
+            }]
+        };
+
+        const heartRateChart = new Chart(ctx, {
+            type: 'bar',
+            data: heartRateData,
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Heart Rate (BPM)'
+                        },
+                        min: 0,
+                        max: 200 // Adjust based on expected heart rate range
+                    }
+                }
+            }
+        });
+
+        // Limit to the latest 10 results
+        eventSource.onmessage = function(event) {
+            const message = JSON.parse(event.data); 
+            
+            const currentTime = new Date().toLocaleTimeString();
+            const heartRate = parseInt(message.message);
+            heartRateData.labels.push(currentTime);
+            heartRateData.datasets[0].data.push(heartRate);
+            
+            heartRateChart.update();
+
+            if (heartRateData.labels.length >= 5) { // Keep only the last 5 points
+                heartRateData.labels.splice(0, heartRateData.labels.length - 5); // Remove excess data points
+                heartRateData.datasets[0].data.splice(0, heartRateData.datasets[0].data.length - 5); // Remove excess data points
+            }
+
+        };
+
+        // Event listener for error handling
+        eventSource.onerror = function(error) {
+            console.error('Error with SSE connection:', error);
+        };
+    </script>
+</body>
+</html>
